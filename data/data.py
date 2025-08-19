@@ -1,8 +1,11 @@
+import itertools
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset, DataLoader
 import os
 from PIL import Image
 import torch
+from torch.utils.data.sampler import Sampler
+
 
 class GaussianNoise(object):
     def __init__(self, mean=0., sigma=0.15, clip=True):
@@ -53,5 +56,72 @@ class TransformTwice:
         out1 = self.transform(input)
         out2 = self.transform(input)
         return out1, out2
-    
 
+def relabel_dataset(dataset, labels):
+    unlabeled_idxs = []
+    for idx in range(len(dataset.imgs)):
+        path, _ = dataset.imgs[idx]
+        filename = os.path.basename(path)
+        if filename in labels:
+            label_idx = dataset.class_to_idx[labels[filename]]
+            dataset.imgs[idx] = path, label_idx
+            del labels[filename]
+        else:
+            dataset.imgs[idx] = path, -1
+            unlabeled_idxs.append(idx)
+
+    if len(labels) != 0:
+        message = "List of unlabeled contains {} unknown files: {}, ..."
+        some_missing = ', '.join(list(labels.keys())[:5])
+        raise LookupError(message.format(len(labels), some_missing))
+
+    labeled_idxs = sorted(set(range(len(dataset.imgs))) - set(unlabeled_idxs))
+
+    return labeled_idxs, unlabeled_idxs
+
+class TwoStreamBatchSampler(Sampler):
+    """Iterate two sets of indices
+
+    An 'epoch' is one iteration through the primary indices. (unlabeled)
+    During the epoch, the secondary indices are iterated through
+    as many times as needed. (labeled)
+    """
+    def __init__(self, primary_indices, secondary_indices, batch_size, secondary_batch_size):
+        self.primary_indices = primary_indices
+        self.secondary_indices = secondary_indices
+        self.secondary_batch_size = secondary_batch_size
+        self.primary_batch_size = batch_size - secondary_batch_size
+
+        assert len(self.primary_indices) >= self.primary_batch_size > 0
+        assert len(self.secondary_indices) >= self.secondary_batch_size > 0
+
+    def __iter__(self):
+        primary_iter = iterate_once(self.primary_indices)
+        secondary_iter = iterate_eternally(self.secondary_indices)
+        return (
+            primary_batch + secondary_batch
+            for (primary_batch, secondary_batch)
+            in  zip(grouper(primary_iter, self.primary_batch_size),
+                    grouper(secondary_iter, self.secondary_batch_size))
+        )
+
+    def __len__(self):
+        return len(self.primary_indices) // self.primary_batch_size
+
+
+def iterate_once(iterable):
+    return np.random.permutation(iterable)
+
+
+def iterate_eternally(indices):
+    def infinite_shuffles():
+        while True:
+            yield np.random.permutation(indices)
+    return itertools.chain.from_iterable(infinite_shuffles())
+
+
+def grouper(iterable, n):
+    "Collect data into fixed-length chunks or blocks"
+    # grouper('ABCDEFG', 3) --> ABC DEF"
+    args = [iter(iterable)] * n
+    return zip(*args)
