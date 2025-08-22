@@ -6,6 +6,7 @@ from PIL import Image
 import torch
 from torch.utils.data.sampler import Sampler
 
+NO_LABEL = -1   # Marker for unlabeled examples
 
 class GaussianNoise(object):
     def __init__(self, mean=0., sigma=0.15, clip=True):
@@ -67,7 +68,7 @@ def relabel_dataset(dataset, labels):
             dataset.imgs[idx] = path, label_idx
             del labels[filename]
         else:
-            dataset.imgs[idx] = path, -1
+            dataset.imgs[idx] = path, NO_LABEL
             unlabeled_idxs.append(idx)
 
     if len(labels) != 0:
