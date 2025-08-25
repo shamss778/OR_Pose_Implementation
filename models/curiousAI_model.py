@@ -14,9 +14,6 @@ from torch import nn
 from torch.nn import functional as F
 from torch.autograd import Variable, Function
 
-# from .utils import export, parameter_count
-
-
 # @export
 def cifar_shakeshake26(pretrained=False, **kwargs):
     assert not pretrained
@@ -310,3 +307,10 @@ class ShiftConvDownsample(nn.Module):
         x = self.conv(x)
         x = self.bn(x)
         return x
+
+MODEL_REGISTRY = {
+    'ResNet32x32': ResNet32x32,
+    'ResNet224x224': ResNet224x224,
+    'cifar_shakeshake26': cifar_shakeshake26,
+    'resnext152': resnext152,
+}
