@@ -7,7 +7,7 @@ from torch.autograd import Variable
 import Mean_Teacher_Method.engine.metrics as metrics
 
 
-from data import NO_LABEL
+from data.data import NO_LABEL
 import state
 from Mean_Teacher_Method.utils.loss import softmax_mse_loss, symmetric_mse_loss
 from engine.hooks import update_ema_variables, adjust_learning_rate, get_current_consistency_weight
@@ -129,7 +129,7 @@ def train(train_loader, model, ema_model, optimizer, epoch):
                        class_loss=classification_loss.item(),
                        ema_class_loss=ema_classification_loss.item(),
                        consistency_loss=consistency_loss.item() if config.consistency else 0,
-                       residual_loss=residual_loss.item() if config.logit_distance_cost >= 0 else 0))
+                       residual_loss_val = residual_loss.item() if torch.is_tensor(residual_loss) else residual_loss)) # idk could be wrong
             else:
                 print('Epoch: [{0}][{1}/{2}]\t'
                       'Loss {loss:.4f}\t'
