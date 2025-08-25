@@ -28,10 +28,10 @@ if config.labels:
         labels = dict(line.split(' ') for line in f.read().splitlines())
     labeled_idxs, unlabeled_idxs = relabel_dataset(train_dataset, labels)
 
-if config.exclude_unlabeled:
+if config.supervised: # if only using labeled data
     sampler = SubsetRandomSampler(labeled_idxs)
     batch_sampler = BatchSampler(sampler, config.batch_size, drop_last=True)
-elif config.labeled_batch_size:
+elif config.labeled_batch_size:# if using semi-supervised learning
     batch_sampler = TwoStreamBatchSampler(
         unlabeled_idxs, labeled_idxs, config.batch_size, config.labeled_batch_size)
 else:
