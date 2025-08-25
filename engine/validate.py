@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from config import device
-from data import NO_LABEL
+from data.data import NO_LABEL
 
 def validate(eval_loader, model):
     model.eval() # set model to evaluation mode
