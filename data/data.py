@@ -21,7 +21,7 @@ class GaussianNoise(object):
             noisy_tensor = torch.clamp(noisy_tensor, 0., 1.)
         return noisy_tensor
 
-class myDataset(Dataset):
+"""class myDataset(Dataset):
     def __init__(self, root_dir, transform):
         self.root_dir = root_dir
         self.transform = transform
@@ -47,7 +47,7 @@ class myDataset(Dataset):
         image = Image.open(img_path).convert('RGB')
         if self.transform:
             image = self.transform(image)
-        return image, label
+        return image, label"""
 
 class TransformTwice:
     def __init__(self, transform):
