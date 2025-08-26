@@ -16,6 +16,7 @@ import torchvision
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from torchvision import transforms
 from torch.utils.data import DataLoader
+import models
 
 def main(config):
     global global_step, best_prec1
@@ -69,8 +70,8 @@ def main(config):
     )
     
     # Initialize student and teacher models
-    student_model = curiousAI_model.MODEL_REGISTRY[config.model](config, data=None).to(device) 
-    teacher_model = curiousAI_model.MODEL_REGISTRY[config.model](config,nograd= True, data=None).to(device)  
+    student_model = models.__dict__[config.model](config, data=None).to(device)
+    teacher_model = models.__dict__[config.model](config,nograd = True, data=None).to(device)
     
     optimizer = torch.optim.SGD(student_model.parameters(), 
                                 lr=config.lr, 
@@ -83,16 +84,16 @@ def main(config):
     save_path, _ = utils.checkpoint.prepare_save_dir(config)
 
     # Optionally resume from a checkpoint
-    """         assert os.path.isfile(args.resume), "=> no checkpoint found at '{}'".format(args.resume)
-        LOG.info("=> loading checkpoint '{}'".format(args.resume))
-        checkpoint = torch.load(args.resume)
-        args.start_epoch = checkpoint['epoch']
+    """         assert os.path.isfile(config.resume), "=> no checkpoint found at '{}'".format(config.resume)
+        LOG.info("=> loading checkpoint '{}'".format(config.resume))
+        checkpoint = torch.load(config.resume)
+        config.start_epoch = checkpoint['epoch']
         global_step = checkpoint['global_step']
         best_prec1 = checkpoint['best_prec1']
         model.load_state_dict(checkpoint['state_dict'])
         ema_model.load_state_dict(checkpoint['ema_state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])
-        LOG.info("=> loaded checkpoint '{}' (epoch {})".format(args.resume, checkpoint['epoch']))"""
+        LOG.info("=> loaded checkpoint '{}' (epoch {})".format(config.resume, checkpoint['epoch']))"""
 
     # TensorBoard writer
     test_writer = SummaryWriter(os.path.join(save_path, 'test')) 
