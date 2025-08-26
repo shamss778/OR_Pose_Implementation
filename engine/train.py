@@ -1,15 +1,15 @@
 
 import config
-import Mean_Teacher_Method.utils.ramps as ramps
+import utils.ramps as ramps
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
-import Mean_Teacher_Method.engine.metrics as metrics
+import engine.metrics as metrics
 
 
 from data.data import NO_LABEL
 import state
-from Mean_Teacher_Method.utils.loss import softmax_mse_loss, symmetric_mse_loss
+from utils.loss import softmax_mse_loss, symmetric_mse_loss
 from engine.hooks import update_ema_variables, adjust_learning_rate, get_current_consistency_weight
 
 device = torch.device("cpu")
@@ -37,7 +37,7 @@ def train(train_loader, model, ema_model, optimizer, epoch):
 
     # Iterate over the training data for one epoch
     # train loader provides both labeled and unlabeled data
-    for i, (input, target) in enumerate(train_loader): 
+    for i, ((input, ema_input_var),target) in enumerate(train_loader): 
 
         # skip the last incomplete batch
         if input.size(0) != config.batch_size:
@@ -49,7 +49,7 @@ def train(train_loader, model, ema_model, optimizer, epoch):
         # Move input and target to device (CPU)
         input_var = Variable(input).to(device)
         target_var = Variable(target).to(device)
-        ema_input_var = Variable(input).to(device)
+        ema_input_var = Variable(ema_input_var).to(device)
 
         minibatch_size = input.size(0)
         labeled_minibatch_size = target_var.ne(NO_LABEL).sum()   
