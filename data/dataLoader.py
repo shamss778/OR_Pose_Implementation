@@ -1,8 +1,8 @@
-from .data import TransformTwice, GaussianNoise, myDataset, relabel_dataset, TwoStreamBatchSampler
+""" from .data import TransformTwice, GaussianNoise, myDataset, relabel_dataset, TwoStreamBatchSampler
 from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from torchvision import transforms
-from .. import config
 from torch.utils.data import DataLoader
+import config
 
 
 
@@ -51,7 +51,7 @@ test_loader = DataLoader(
     num_workers= config.num_workers,
     pin_memory= config.pin_memory,
     drop_last=False
-)
+) """
 
 
 
