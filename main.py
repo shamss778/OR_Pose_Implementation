@@ -1,10 +1,8 @@
-from config import device
+from config import device, build_config
 from state import global_step, best_prec1
-from data.dataLoader import train_dataset, test_dataset, train_loader, test_loader
 from engine import train, validate
 import torch
-from data.data import relabel_dataset
-from data.dataLoader import test_loader
+from data.data import TransformTwice, GaussianNoise, relabel_dataset, TwoStreamBatchSampler as TransfromTwice, GaussianNoise, relabel_dataset, TwoStreamBatchSampler
 from models import curiousAI_model
 import torch.backends.cudnn as cudnn
 import utils.checkpoint
@@ -13,9 +11,62 @@ import os
 from engine.validate import validate
 from engine.train import train
 from torch.utils.tensorboard import SummaryWriter
+import config
+import torchvision
+from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
+from torchvision import transforms
+from torch.utils.data import DataLoader
 
 def main(config):
     global global_step, best_prec1
+
+    train_transform = TransformTwice(transforms.Compose([
+    transforms.Resize((32,32)),
+    transforms.RandomAffine(degrees=0, translate=(2/32, 2/32)),
+    transforms.RandomHorizontalFlip(p=0.5),
+    transforms.ToTensor(),
+    GaussianNoise(mean=0. , sigma=0.15, clip=True), 
+    transforms.Normalize(mean=(0., 0., 0.), std=(1., 1., 1.)),
+        ]))
+
+    test_transform = transforms.Compose([
+        transforms.ToTensor(),
+        transforms.Normalize(mean=(0, 0, 0), std= (1, 1, 1))
+    ])
+
+    train_dataset = torchvision.datasets.ImageFolder(config.traindir, train_transform)
+    test_dataset = torchvision.datasets.ImageFolder(config.testdir, test_transform)
+
+    if config.labels:
+        with open(config.labels) as f:
+            labels = dict(line.split(' ') for line in f.read().splitlines())
+        labeled_idxs, unlabeled_idxs = relabel_dataset(train_dataset, labels)
+
+
+    if config.supervised: # if only using labeled data
+        sampler = SubsetRandomSampler(labeled_idxs)
+        batch_sampler = BatchSampler(sampler, config.batch_size, drop_last=True)
+    elif config.labeled_batch_size:# if using semi-supervised learning
+        batch_sampler = TwoStreamBatchSampler(
+            unlabeled_idxs, labeled_idxs, config.batch_size, config.labeled_batch_size)
+    else:
+        assert False, "labeled batch size {}".format(config.labeled_batch_size)
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_sampler= batch_sampler,
+        num_workers= config.num_workers,
+        pin_memory= config.pin_memory,
+    )
+
+    test_loader = DataLoader(
+        test_dataset,
+        batch_size= config.batch_size,
+        shuffle=False,
+        num_workers= config.num_workers,
+        pin_memory= config.pin_memory,
+        drop_last=False
+    )
     
     # Initialize student and teacher models
     student_model = curiousAI_model.MODEL_REGISTRY[config.model](config, data=None).to(device) 
@@ -91,3 +142,7 @@ def main(config):
                 'best_prec1': best_prec1,
                 'optimizer' : optimizer.state_dict(),
             }, is_best, save_path, epoch + 1)
+
+if __name__ == "__main__":
+    config = build_config()
+    main(config)
