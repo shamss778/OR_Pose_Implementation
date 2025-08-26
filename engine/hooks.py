@@ -1,4 +1,4 @@
-import Mean_Teacher_Method.utils.ramps as ramps
+import utils.ramps as ramps
 import config
 
 def update_ema_variables(model, ema_model, alpha, global_step):
