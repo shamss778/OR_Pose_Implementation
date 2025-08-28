@@ -18,18 +18,14 @@ def train(train_loader, model, ema_model, optimizer, epoch):
 
     # average meters to record the training statistics
     running_loss = 0.0     
-
+    losses = metrics.AverageMeter() # to record the average loss
+    
     # Loss function of student with reduction 'sum' to devide by the total number of labeled samples
     # in the minibatch instead of the total batch size 
     class_criterion = nn.CrossEntropyLoss(reduction='sum', ignore_index=NO_LABEL)     
 
-    losses = metrics.AverageMeter() # to record the average loss
-
     # Loss function of consistency loss size between student and teacher
     consistency_criterion = softmax_mse_loss  
-
-    # Loss function of the distance between two logits of the student in multi-head architecture
-    residual_logit_criterion = symmetric_mse_loss 
 
     # switch to train mode
     model.train()
@@ -37,7 +33,7 @@ def train(train_loader, model, ema_model, optimizer, epoch):
 
     # Iterate over the training data for one epoch
     # train loader provides both labeled and unlabeled data
-    for i, ((input, ema_input_var),target) in enumerate(train_loader): 
+    for i, ((input, ema_input), target) in enumerate(train_loader): 
 
         # skip the last incomplete batch
         if input.size(0) != config.batch_size:
@@ -49,58 +45,40 @@ def train(train_loader, model, ema_model, optimizer, epoch):
         # Move input and target to device (CPU)
         input_var = Variable(input).to(device)
         target_var = Variable(target).to(device)
-        ema_input_var = Variable(ema_input_var).to(device)
 
-        minibatch_size = input.size(0)
+        minibatch_size = len(target_var)  # total minibatch size (labeled + unlabeled)
         labeled_minibatch_size = target_var.ne(NO_LABEL).sum()   
 
         # Make sure we have at least one labeled sample in the minibatch
         assert labeled_minibatch_size > 0, "No labeled samples in the minibatch"
 
         # Compute output of student and teacher
-        student_out = model(input_var)
-        teacher_out = ema_model(ema_input_var)            
+        student_out = model(input_var)  
+
+        classification_loss = class_criterion(student_out, target_var) / minibatch_size        
 
         # if semi-supervised learning
         if not config.supervised:
-            
-            # Multi-head architecture
-            if isinstance(student_out, (tuple, list)):
-                assert len(student_out) == 2 and len(teacher_out) == 2, "For multi-head architecture, "
-                "the model should return two outputs"
-                student_logit1, student_logit2 = student_out # two heads of student
-                teacher_logit, _ = teacher_out
-    
-            else:
-                assert config.logit_distance_cost <= 0, "For multi-head architecture, set logit_distance_cost > 0"
-                student_logit = student_out
-                teacher_logit = teacher_out
-        
-            teacher_logit = teacher_logit.detach()  # we do not need to backpropagate through teacher
 
-            # compute losses with or without multi-head architecture
-            if config.logit_distance_cost >= 0:
-                # logit1 is for classification, logit2 is for consistency
-                classification_logit, consistency_logit = student_logit1, student_logit2
-                residual_loss = config.logit_distance_cost * residual_logit_criterion(classification_logit, consistency_logit) / minibatch_size 
-            else:
-                classification_logit, consistency_logit = student_logit, student_logit
-                residual_loss = 0  
+            # compute output of teacher
+            with torch.no_grad():
+                ema_input_var = Variable(ema_input).to(device)
 
-            # Compute classification loss of the labeled samples + unlabeled (only for validation)
-            classification_loss = class_criterion(classification_logit, target_var) / labeled_minibatch_size
-            ema_classification_loss = class_criterion(teacher_logit, target_var) / labeled_minibatch_size # for monitoring only
-            
+            ema_model_out = ema_model(ema_input_var)
+
+            ema_logit = Variable(ema_model_out.detach().data, requires_grad=False).to(device)
+
             if config.consistency:
                 # Compute consistency loss of all samples
                 consistency_weight = get_current_consistency_weight(epoch)
-                consistency_loss = consistency_weight * consistency_criterion(consistency_logit, teacher_logit) / minibatch_size
-
+                consistency_loss = consistency_weight * consistency_criterion(student_out, ema_logit) / minibatch_size
+            else:
+                consistency_loss = 0
+            
             # Total loss
-            loss = classification_loss + consistency_loss + residual_loss
+            loss = classification_loss + consistency_loss
 
         else: # Supervised learning
-            classification_loss = class_criterion(student_out, target_var) / labeled_minibatch_size
             loss = classification_loss
 
         # compute gradient and do SGD step
@@ -116,27 +94,12 @@ def train(train_loader, model, ema_model, optimizer, epoch):
         # print statistics
         running_loss += loss.item()
 
-        # print training stats every 50 mini-batches
-        if i % 50 == 49:    
-            if not config.supervised:
-                print('Epoch: [{0}][{1}/{2}]\t'
-                      'Loss {loss:.4f}\t'
-                      'Class Loss {class_loss:.4f}\t'
-                      'Ema Class Loss {ema_class_loss:.4f}\t'
-                      'Consistency Loss {consistency_loss:.4f}\t'
-                      'Residual Loss {residual_loss:.4f}\t'.format(
-                       epoch, i + 1, len(train_loader), loss=running_loss / 50,
-                       class_loss=classification_loss.item(),
-                       ema_class_loss=ema_classification_loss.item(),
-                       consistency_loss=consistency_loss.item() if config.consistency else 0,
-                       residual_loss_val = residual_loss.item() if torch.is_tensor(residual_loss) else residual_loss)) # idk could be wrong
-            else:
-                print('Epoch: [{0}][{1}/{2}]\t'
-                      'Loss {loss:.4f}\t'
-                      'Class Loss {class_loss:.4f}\t'.format(
-                       epoch, i + 1, len(train_loader), loss=running_loss / 50,
-                       class_loss=classification_loss.item()))
+        if i % 20 == 19:    # print every 20 mini-batches
+            print('[Epoch: %d, Iteration: %5d] loss: %.5f' %
+                  (epoch + 1, i + 1, running_loss / 20))
             running_loss = 0.0
+
+        losses.update(loss.item(), input.size(0))
 
     return losses, running_loss
 
