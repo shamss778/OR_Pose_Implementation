@@ -21,33 +21,51 @@ class GaussianNoise(object):
             noisy_tensor = torch.clamp(noisy_tensor, 0., 1.)
         return noisy_tensor
 
-"""class myDataset(Dataset):
-    def __init__(self, root_dir, transform):
-        self.root_dir = root_dir
-        self.transform = transform
-        # Gather class names from subdirectory names
-        self.classes = sorted(entry.name for entry in os.scandir(root_dir) if entry.is_dir())
-        # Map class name to integer label
-        self.class_to_idx = {cls_name: idx for idx, cls_name in enumerate(self.classes)}
-        # Build list of (image_path, label) tuples
-        self.samples = []
-        for cls_name in self.classes:
-            cls_folder = os.path.join(root_dir, cls_name)
-            for fname in os.listdir(cls_folder):
-                if fname.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp')):
-                    path = os.path.join(cls_folder, fname)
-                    label = self.class_to_idx[cls_name]
-                    self.samples.append((path, label))
-    
-    def __len__(self):
-        return len(self.samples)
-    
-    def __getitem__(self, idx):
-        img_path, label = self.samples[idx]
-        image = Image.open(img_path).convert('RGB')
-        if self.transform:
-            image = self.transform(image)
-        return image, label"""
+class RandomTranslateWithReflect:
+    """Translate image randomly
+
+    Translate vertically and horizontally by n pixels where
+    n is integer drawn uniformly independently for each axis
+    from [-max_translation, max_translation].
+
+    Fill the uncovered blank area with reflect padding.
+    """
+
+    def __init__(self, max_translation):
+        self.max_translation = max_translation
+
+    def __call__(self, old_image):
+        xtranslation, ytranslation = np.random.randint(-self.max_translation,
+                                                       self.max_translation + 1,
+                                                       size=2)
+        xpad, ypad = abs(xtranslation), abs(ytranslation)
+        xsize, ysize = old_image.size
+
+        flipped_lr = old_image.transpose(Image.FLIP_LEFT_RIGHT)
+        flipped_tb = old_image.transpose(Image.FLIP_TOP_BOTTOM)
+        flipped_both = old_image.transpose(Image.ROTATE_180)
+
+        new_image = Image.new("RGB", (xsize + 2 * xpad, ysize + 2 * ypad))
+
+        new_image.paste(old_image, (xpad, ypad))
+
+        new_image.paste(flipped_lr, (xpad + xsize - 1, ypad))
+        new_image.paste(flipped_lr, (xpad - xsize + 1, ypad))
+
+        new_image.paste(flipped_tb, (xpad, ypad + ysize - 1))
+        new_image.paste(flipped_tb, (xpad, ypad - ysize + 1))
+
+        new_image.paste(flipped_both, (xpad - xsize + 1, ypad - ysize + 1))
+        new_image.paste(flipped_both, (xpad + xsize - 1, ypad - ysize + 1))
+        new_image.paste(flipped_both, (xpad - xsize + 1, ypad + ysize - 1))
+        new_image.paste(flipped_both, (xpad + xsize - 1, ypad + ysize - 1))
+
+        new_image = new_image.crop((xpad - xtranslation,
+                                    ypad - ytranslation,
+                                    xpad + xsize - xtranslation,
+                                    ypad + ysize - ytranslation))
+
+        return new_image
 
 class TransformTwice:
     def __init__(self, transform):
