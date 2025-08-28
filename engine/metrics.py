@@ -1,19 +1,5 @@
-from data.data import NO_LABEL
+import sys
 
-def accuracy(output, target, topk=(1,)):
-    """Computes the precision@k for the specified values of k"""
-    maxk = max(topk)
-    labeled_minibatch_size = max(target.ne(NO_LABEL).sum(), 1e-8)
-
-    _, pred = output.topk(maxk, 1, True, True)
-    pred = pred.t()
-    correct = pred.eq(target.view(1, -1).expand_as(pred))
-
-    res = []
-    for k in topk:
-        correct_k = correct[:k].view(-1).float().sum(0, keepdim=True)
-        res.append(correct_k.mul_(100.0 / labeled_minibatch_size))
-    return res
 
 class AverageMeterSet:
     def __init__(self):
@@ -64,3 +50,16 @@ class AverageMeter:
 
     def __format__(self, format):
         return "{self.val:{format}} ({self.avg:{format}})".format(self=self, format=format)
+
+
+def export(fn):
+    mod = sys.modules[fn.__module__]
+    if hasattr(mod, '__all__'):
+        mod.__all__.append(fn.__name__)
+    else:
+        mod.__all__ = [fn.__name__]
+    return fn
+
+
+def parameter_count(module):
+    return sum(int(param.numel()) for param in module.parameters())
