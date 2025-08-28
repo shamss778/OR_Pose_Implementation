@@ -1,6 +1,5 @@
 from config import device, build_config
-from state import global_step, best_prec1
-from engine import train, validate
+import state
 import torch
 from data.data import TransformTwice, GaussianNoise, relabel_dataset, TwoStreamBatchSampler as TransfromTwice, GaussianNoise, relabel_dataset, TwoStreamBatchSampler
 from models import curiousAI_model
@@ -17,22 +16,19 @@ from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 from torchvision import transforms
 from torch.utils.data import DataLoader
 import models
+import data.data as data
 
 def main(config):
-    global global_step, best_prec1
 
     train_transform = TransformTwice(transforms.Compose([
-    transforms.Resize((32,32)),
-    transforms.RandomAffine(degrees=0, translate=(2/32, 2/32)),
-    transforms.RandomHorizontalFlip(p=0.5),
-    transforms.ToTensor(),
-    GaussianNoise(mean=0. , sigma=0.15, clip=True), 
-    transforms.Normalize(mean=(0., 0., 0.), std=(1., 1., 1.)),
-        ]))
+        data.RandomTranslateWithReflect(4),
+        transforms.RandomHorizontalFlip(),
+        transforms.ToTensor(),
+        transforms.Normalize((0.4914, 0.4822, 0.4465),(0.2470,  0.2435,  0.2616))]))
 
     test_transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Normalize(mean=(0, 0, 0), std= (1, 1, 1))
+        transforms.Normalize((0.4914, 0.4822, 0.4465),(0.2470,  0.2435,  0.2616))
     ])
 
     train_dataset = torchvision.datasets.ImageFolder(config.traindir, train_transform)
@@ -43,11 +39,7 @@ def main(config):
             labels = dict(line.split(' ') for line in f.read().splitlines())
         labeled_idxs, unlabeled_idxs = relabel_dataset(train_dataset, labels)
 
-
-    if config.supervised: # if only using labeled data
-        sampler = SubsetRandomSampler(labeled_idxs)
-        batch_sampler = BatchSampler(sampler, config.batch_size, drop_last=True)
-    elif config.labeled_batch_size:# if using semi-supervised learning
+    if config.labeled_batch_size:# if using semi-supervised learning
         batch_sampler = TwoStreamBatchSampler(
             unlabeled_idxs, labeled_idxs, config.batch_size, config.labeled_batch_size)
     else:
@@ -64,7 +56,7 @@ def main(config):
         test_dataset,
         batch_size= config.batch_size,
         shuffle=False,
-        num_workers= config.num_workers,
+        num_workers= 2 * config.num_workers,
         pin_memory= config.pin_memory,
         drop_last=False
     )
@@ -128,19 +120,19 @@ def main(config):
             test_writer.add_scalar('Accuracy Student', prec1, epoch)
             test_writer.add_scalar('Accuracy Teacher', ema_prec1, epoch)
 
-            is_best = ema_prec1 > best_prec1
-            best_prec1 = max(ema_prec1, best_prec1)
+            is_best = ema_prec1 > state.best_prec1
+            state.best_prec1 = max(ema_prec1, state.best_prec1)
         else:
             is_best = False
 
         if config.checkpoint_epochs and (epoch + 1) % config.checkpoint_epochs == 0:
             utils.checkpoint.save_checkpoint({
                 'epoch': epoch + 1,
-                'global_step': global_step,
+                'global_step': state.global_step,
                 'arch': config.model,
                 'state_dict': student_model.state_dict(),
                 'ema_state_dict': teacher_model.state_dict(),
-                'best_prec1': best_prec1,
+                'best_prec1': state.best_prec1,
                 'optimizer' : optimizer.state_dict(),
             }, is_best, save_path, epoch + 1)
 
