@@ -41,17 +41,17 @@ save_path = 'experiments' # base directory to save the model
 dataName = 'cifar10'
 
 # directories and data
-traindir = 'data/dataset/cifar10/train'
-testdir = 'data/dataset/cifar10/test'
-labels = "data/dataset/labels/cifar10/cifar10.txt" # path to the file containing labels for a subset of training data
+traindir = 'data/dataset/train'
+testdir = 'data/dataset/test'
+labels = "data/labels/cifar10/1000_balanced_labels/00.txt" # path to the file containing labels for a subset of training data
 
 
 # type of learnong: fully supervised or semi-supervised
 supervised = False # if True, only use labeled data for training (fully supervised learning)
 
 # if supervised is False, set labeled_batch_size to the desired batch size of labeled data (semi-supervised learning)
-labeled_batch_size = 31 # if None, use standard random sampler (no constraint on
-batch_size = 128 # total batch size (labeled + unlabeled) for semi-supervised learning, or batch size for fully supervised learning
+labeled_batch_size = 62 # if None, use standard random sampler (no constraint on
+batch_size = 256 # total batch size (labeled + unlabeled) for semi-supervised learning, or batch size for fully supervised learning
 
 # DataLoader parameters
 num_workers = 4
