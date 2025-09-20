@@ -14,26 +14,6 @@ from torch import nn
 from torch.nn import functional as F
 from torch.autograd import Variable, Function
 
-# @export
-def cifar_shakeshake26(pretrained=False, **kwargs):
-    assert not pretrained
-    model = ResNet32x32(ShakeShakeBlock,
-                        layers=[4, 4, 4],
-                        channels=96,
-                        downsample='shift_conv', **kwargs)
-    return model
-
-
-# @export
-def resnext152(pretrained=False, **kwargs):
-    assert not pretrained
-    model = ResNet224x224(BottleneckBlock,
-                          layers=[3, 8, 36, 3],
-                          channels=32 * 4,
-                          groups=32,
-                          downsample='basic', **kwargs)
-    return model
-
 
 
 class ResNet224x224(nn.Module):
@@ -102,7 +82,7 @@ class ResNet224x224(nn.Module):
         x = self.layer4(x)
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
-        return self.fc1(x), self.fc2(x)
+        return self.fc1(x)
 
 
 class ResNet32x32(nn.Module):
@@ -162,7 +142,7 @@ class ResNet32x32(nn.Module):
         x = self.layer3(x)
         x = self.avgpool(x)
         x = x.view(x.size(0), -1)
-        return self.fc1(x), self.fc2(x)
+        return self.fc1(x)
 
 
 def conv3x3(in_planes, out_planes, stride=1):
@@ -308,9 +288,22 @@ class ShiftConvDownsample(nn.Module):
         x = self.bn(x)
         return x
 
-MODEL_REGISTRY = {
-    'ResNet32x32': ResNet32x32,
-    'ResNet224x224': ResNet224x224,
-    'cifar_shakeshake26': cifar_shakeshake26,
-    'resnext152': resnext152,
-}
+def cifar_shakeshake26(pretrained=False, **kwargs):
+    assert not pretrained
+    model = ResNet32x32(ShakeShakeBlock,
+                        layers=[4, 4, 4],
+                        channels=96,
+                        downsample='shift_conv', **kwargs)
+    return model
+
+
+
+def resnext152(pretrained=False, **kwargs):
+    assert not pretrained
+    model = ResNet224x224(BottleneckBlock,
+                          layers=[3, 8, 36, 3],
+                          channels=32 * 4,
+                          groups=32,
+                          downsample='basic', **kwargs)
+    return model
+

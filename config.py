@@ -13,7 +13,7 @@ sntg = False # whether to use sntg loss or not
 device = torch.device("cpu") 
 
 # model initialization
-model = 'convlarge'  # Options: ResNet32x32, ResNet224x224, cifar_shakeshake26, resnext152
+model = 'cifar_shakeshake26'  # Options: ResNet32x32, ResNet224x224, cifar_shakeshake26, resnext152
 
 # learning rate configuration
 lr = 0.1
@@ -43,7 +43,7 @@ dataName = 'cifar10'
 # directories and data
 traindir = 'data/dataset/train'
 testdir = 'data/dataset/test'
-labels = "data/labels/cifar10/1000_balanced_labels/00.txt" # path to the file containing labels for a subset of training data
+labels = "data/dataset/labels/cifar10/00.txt" # path to the file containing 1000 labels for a subset of training data
 
 
 # type of learnong: fully supervised or semi-supervised
@@ -103,7 +103,8 @@ def build_config():
         logit_distance_cost=logit_distance_cost,
         ema_decay=ema_decay,
         BN=BN,
-        sntg=sntg
+        sntg=sntg,
+        pretrained=False,  # Whether to use a pretrained model
     )
 
 

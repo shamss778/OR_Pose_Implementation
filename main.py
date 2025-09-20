@@ -1,12 +1,15 @@
+import os
+os.environ['TF_CPP_MIN_LOG_LEVEL'] = '2'
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning)
 from config import device, build_config
 import state
 import torch
 from data.data import TransformTwice, GaussianNoise, relabel_dataset, TwoStreamBatchSampler as TransfromTwice, GaussianNoise, relabel_dataset, TwoStreamBatchSampler
-from models import curiousAI_model
+from models import curiousAI_model, EncoderDecoder
 import torch.backends.cudnn as cudnn
 import utils.checkpoint
 from torch.utils.tensorboard import SummaryWriter
-import os
 from engine.validate import validate
 from engine.train import train
 from torch.utils.tensorboard import SummaryWriter
@@ -18,7 +21,9 @@ from torch.utils.data import DataLoader
 import models
 import data.data as data
 
+
 def main(config):
+
 
     train_transform = TransformTwice(transforms.Compose([
         data.RandomTranslateWithReflect(4),
@@ -61,9 +66,26 @@ def main(config):
         drop_last=False
     )
     
+    def create_model(num_classes, ema=False):
+        
+ 
+        if config.model not in models.curiousAI_model.__dict__:
+            raise ValueError("Invalid model architecture: {}".format(config.model))
+
+        model_factory = models.curiousAI_model.__dict__[config.model]
+        model_params = dict(pretrained=config.pretrained, num_classes=num_classes)
+        model = model_factory(**model_params)
+
+        if ema:
+            for param in model.parameters():
+                param.detach_()
+
+        return model
+    
+
     # Initialize student and teacher models
-    student_model = models.__dict__[config.model](config, data=None).to(device)
-    teacher_model = models.__dict__[config.model](config,nograd = True, data=None).to(device)
+    student_model = create_model(num_classes=10, ema=False).to(device)
+    teacher_model = create_model(num_classes=10, ema=True).to(device)
     
     optimizer = torch.optim.SGD(student_model.parameters(), 
                                 lr=config.lr, 
@@ -73,7 +95,7 @@ def main(config):
     cudnn.benchmark = True # For fast training
 
     # Prepare save directory
-    save_path, _ = utils.checkpoint.prepare_save_dir(config)
+    # save_path, _ = utils.checkpoint.prepare_save_dir(config)
 
     # Optionally resume from a checkpoint
     """         assert os.path.isfile(config.resume), "=> no checkpoint found at '{}'".format(config.resume)
@@ -88,7 +110,7 @@ def main(config):
         LOG.info("=> loaded checkpoint '{}' (epoch {})".format(config.resume, checkpoint['epoch']))"""
 
     # TensorBoard writer
-    test_writer = SummaryWriter(os.path.join(save_path, 'test')) 
+    ''' test_writer = SummaryWriter(os.path.join(save_path, 'test')) '''
 
     # Evaluation before training for sanity check
     if config.evaluate:
@@ -125,7 +147,7 @@ def main(config):
         else:
             is_best = False
 
-        if config.checkpoint_epochs and (epoch + 1) % config.checkpoint_epochs == 0:
+'''        if config.checkpoint_epochs and (epoch + 1) % config.checkpoint_epochs == 0:
             utils.checkpoint.save_checkpoint({
                 'epoch': epoch + 1,
                 'global_step': state.global_step,
@@ -134,8 +156,9 @@ def main(config):
                 'ema_state_dict': teacher_model.state_dict(),
                 'best_prec1': state.best_prec1,
                 'optimizer' : optimizer.state_dict(),
-            }, is_best, save_path, epoch + 1)
+            }, is_best, save_path, epoch + 1)'''
 
 if __name__ == "__main__":
     config = build_config()
+    print(models.curiousAI_model.__dict__.keys())
     main(config)

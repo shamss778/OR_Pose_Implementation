@@ -1,5 +1,5 @@
-data/dataset/cifar10/
+data/dataset
 data/test_dataLoader.py
-Mean_Teacher_Method/__pycache__
+__pycache__
 .DS_Store
 *__pycache__
